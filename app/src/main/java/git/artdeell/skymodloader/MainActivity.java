@@ -65,7 +65,7 @@ public class MainActivity extends Activity {
         skyPackages.put("com.tgc.sky.android", 0);
         skyPackages.put("com.tgc.sky.vn.android", 0);
         skyPackages.put("com.tgc.sky.android.huawei", 1);
-        loadGame();
+        skyPackages.put("com.netease.sky", 2);
     }
 
     private void startLogcatMonitoring() {
@@ -93,7 +93,12 @@ public class MainActivity extends Activity {
                 skyInfo.nativeLibraryDir,
                 ClassLoader.getSystemClassLoader()
             );
-            Class<?> buildConfig = skyLoader.loadClass("com.tgc.sky.BuildConfig");
+            Class<?> buildConfig;
+            try {
+                buildConfig = skyLoader.loadClass("com.tgc.sky.BuildConfig");
+            } catch (ClassNotFoundException e) {
+                buildConfig = skyLoader.loadClass("com.netease.sky.BuildConfig");
+            }
             Field field = buildConfig.getDeclaredField("SKY_BUILD_ACCESS_KEY");
             field.setAccessible(true);
             String key = (String) field.get(null);
@@ -135,7 +140,11 @@ public class MainActivity extends Activity {
             SMLApplication.skyRes = pm.getResourcesForApplication(info.packageName);
             SMLApplication.smlRes = getResources();
             String versionName = info.versionName;
-            BuildConfig.SKY_VERSION = versionName.substring(0, versionName.indexOf(' ')).trim();
+            if (versionName.contains(" ")) {
+                BuildConfig.SKY_VERSION = versionName.substring(0, versionName.indexOf(' ')).trim();
+            } else {
+                BuildConfig.SKY_VERSION = versionName.trim();
+            }
             BuildConfig.VERSION_CODE = info.versionCode;
 
             String libPath = resolveLibPath(info.applicationInfo);
@@ -237,7 +246,14 @@ public class MainActivity extends Activity {
 
             new ElfRefcountLoader(elfLibPath, modsDir).load();
             BuildConfig.APPLICATION_ID = SKY_PACKAGE_NAME;
-            startActivity(new Intent(this, GameActivity.class));
+
+            Intent gameIntent = new Intent();
+            if ("com.netease.sky".equals(SKY_PACKAGE_NAME)) {
+                gameIntent.setClassName(SKY_PACKAGE_NAME, "com.tgc.sky.TGCBootActivity");
+            } else {
+                gameIntent.setClass(this, GameActivity.class);
+            }
+            startActivity(gameIntent);
 
         } catch (PackageManager.NameNotFoundException e) {
             alertDialog(getString(R.string.sky_not_installed));
@@ -332,12 +348,12 @@ public class MainActivity extends Activity {
         }
 
         if (bootloaderFile.exists()) {
-			Log.i("MainActivity", "Sky updated (v" + lastExtractedVersion + " → v" + currentVersion + "), re-extraction");
-			bootloaderFile.delete();
-			for (String dep : new String[]{"libfmod.so", "libfmodstudio.so", "libc++_shared.so"}) {
-				new File(extractDir, dep).delete();
-				}
-		}
+            Log.i("MainActivity", "Sky updated (v" + lastExtractedVersion + " → v" + currentVersion + "), re-extraction");
+            bootloaderFile.delete();
+            for (String dep : new String[]{"libfmod.so", "libfmodstudio.so", "libc++_shared.so"}) {
+                new File(extractDir, dep).delete();
+            }
+        }
 
         String apkPath = mainLibPath.substring(0, mainLibPath.indexOf("!/lib"));
         Log.i("MainActivity", "Extracting native libs from: " + apkPath);
@@ -501,8 +517,8 @@ public class MainActivity extends Activity {
         deviceInfo.deviceModel = Build.MODEL;
         return deviceInfo;
     }
-
-    public static native void settle(
+    
+   public static native void settle(
         int _gameVersion,
         int _gameType,
         String _hostName,
